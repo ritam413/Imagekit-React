@@ -5,17 +5,23 @@ import { RxCross2 } from "react-icons/rx";
 import { useImageStore } from "../../zustand/image.store.js";
 import { useEditStore } from "../../zustand/editpage.store.js";
 import ImageEditor from "./Crop/ImageEditor.jsx";
+import {contraintToBoudary} from '../../components/EditPage/Crop/CropHelperFunc.jsx'
 import * as fabric from "fabric";
 import fabricJsBackend from "../../utils/fabricjsBackend.js";
 export default function Canvas({ }) {
+
   const fabricRef = useRef(null)
   const canvasRef = useRef(null)
   const activeImage = useImageStore((state) => state.activeImage)
   const setActiveImage = useImageStore((state) => state.setActiveImage);
-  const visiblePanel = useEditStore().visiblePanel
+  const imageStates = useImageStore((state)=>state.imageStates)
   const containerRef = useRef(null)
-
-
+  const imgRef = useRef(null)
+  const [cropBox,setCropBox] = useState(null);
+  const visiblePanel = useEditStore((state) => state.visiblePanel);
+  
+  console.log("visiblePanel: ",visiblePanel)
+  //! Setting UP my Canvas to Use in Editing
   useEffect(() => {
 
     if (!canvasRef.current) return
@@ -44,45 +50,106 @@ export default function Canvas({ }) {
       canvas.dispose()
     }
   }, [])
-
-
-
+  //! FUnction to actaully load the Image in the Canvas
   const loadImageFromUrl = async (url) => {
     const canvas = fabricRef.current
 
     if (!canvas) return;
     try {
+      canvas.clear();
+      // 1. Load the image
       const img = await fabric.FabricImage.fromURL(url, {
         controls: fabric.FabricImage.createControls().controls,
         crossOrigin: 'anonymous'
       })
 
-      // 1. Get container dimensions
-      const maxWidth = containerRef.current.clientWidth;
-      const maxHeight = containerRef.current.clientHeight;
-
       // 2. Calculate scale factors (using 0.9 to leave a 10% padding buffer)
-      const scaleX = (maxWidth * 0.9) / img.width;
-      const scaleY = (maxHeight * 0.9) / img.height;
+      const scaleX = ((containerRef.current.clientWidth) * 0.9) / img.width;
+      const scaleY = ((containerRef.current.clientHeight) * 0.9) / img.height;
 
       // 3. Use the smaller scale factor to ensure it fits both ways
       const finalScale = Math.min(scaleX, scaleY);
 
       img.scale(finalScale);
+      // img.isMoving=false;
+      // img.selectable=false
       canvas.add(img)
       canvas.centerObject(img)
       canvas.setActiveObject(img)
-
+      imgRef.current = img
       canvas.requestRenderAll()
 
     } catch (err) {
       console.log("Couldnt load Image from url", err)
     }
   }
-
+  //*Looking for changes in active image and calling my display function to display theimage
   useEffect(() => {
     if (activeImage) loadImageFromUrl(activeImage)
   }, [activeImage])
+
+
+  //* Checking the current ImageState , observe if it is being set or not
+  useEffect(()=>{
+    console.log("Sates of Image current image is: ",imageStates)
+  },[imageStates])
+
+
+  //!gettingg live Dimention of the Image to set the crop Container
+  const getLiveDimensions=() =>{
+    if(!imgRef.current) return
+
+    const obj = imgRef.current
+
+    return{
+      displayWidth:obj.getScaledWidth(),
+      displayHeight:obj.getScaledHeight(),
+
+      left:obj.left,
+      top:obj.top,
+
+      scaleX:obj.scaleX,
+      scaleY:obj.scaleY
+    }
+
+  }
+  //! Actuall CropBox Overlay which we can see
+  const toggleCropbox = (isActive)=>{
+    const canvas = fabricRef.current
+    if(!canvas) return;
+
+    const dimestions = getLiveDimensions()
+
+    if(isActive){
+      const rect = new fabric.Rect({
+        width: dimestions.displayWidth,
+        height: dimestions.displayHeight,
+        fill:'rgba(0,0,0,0.1)',
+        stroke:'#fff',
+        strokeDashArray:[5,5],
+        strokeWidth:2,
+        cornerColor:'#3b82f6',
+        transparentCorners:false,
+        RotatingPoint:false,
+      })
+      rect.setControlVisible('mtr',false)
+      canvas.add(rect)
+      canvas.centerObject(rect)
+      canvas.setActiveObject(rect)
+      setCropBox(rect);
+    }else{
+      if(cropBox){
+        canvas.remove(cropBox)
+        setCropBox(null)
+      }
+    }
+
+  }
+  //*Toggling ON/OFF CropBox according to the Current Panel
+  useEffect(()=>{
+    toggleCropbox(visiblePanel === 'crop')
+  },[visiblePanel])
+
 
   return (
     <div

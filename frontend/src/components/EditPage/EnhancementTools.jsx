@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState , useEffect } from 'react';
 import { AdjustmentSlider,PresetButton } from './EnhancementToolsIcon';
+import { useImageStore } from '../../zustand/image.store';
 
 
 export const EnhancementTools = () => {
@@ -15,6 +16,18 @@ export const EnhancementTools = () => {
 
     // State for active filter preset
     const [activeFilter, setActiveFilter] = useState('none');
+
+    
+    const activeImage = useImageStore((state) => state.activeImage)
+    const updateActiveImageState = useImageStore((state)=>state.updateActiveImageState)
+    useEffect(()=>{
+        if(activeImage)
+        {
+            updateActiveImageState({
+                sharpen,warmth,vignette,clarity,exposure,saturation,contrast,brightness
+            })
+        }
+    },[sharpen, warmth, vignette, clarity, exposure, saturation, contrast, brightness, activeImage])
 
     // Dummy filter presets for demonstration
     const filters = [
